@@ -20,6 +20,7 @@ public class SecurityConfig {
                         .pathMatchers(
                                 "/swagger-ui/**",
                                 "/v3/api-docs/**",
+                                "/user-service/v3/api-docs",
                                 "/user-service/v3/api-docs/**"
                         ).permitAll()
                         .anyExchange().authenticated()

@@ -1,0 +1,22 @@
+spring:
+  cloud:
+    config:
+      enabled: false
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: http://localhost/jwks
+
+eureka:
+  client:
+    enabled: false
+
+pinggo:
+  security:
+    internal:
+      gateway-secret: test-gateway-secret
+    oauth2:
+      swagger:
+        authorization-url: https://example.com/authorize
+        token-url: https://example.com/token

@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pinggo — System Architecture</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #060913; --surface: #0d1526; --card: #0a1628;
+      --border: rgba(255,255,255,0.07);
+      --text: #f0f4ff; --muted: #8b9ab8; --faint: #3d4f6a;
+      --node-bg: #07111f;
+      --svg-bg: #040c1a;
+    }
+
+    :root[data-theme="light"] {
+      --bg: #f0f4ff; --surface: #e8edf8; --card: #ffffff;
+      --border: rgba(0,0,0,0.1);
+      --text: #0d1526; --muted: #4a5568; --faint: #8b9ab8;
+      --node-bg: #ffffff;
+      --svg-bg: #f0f4ff;
+    }
+
+    body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; min-height: 100vh; transition: background 0.25s, color 0.25s; }
+
+    body::before {
+      content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+      background-image: linear-gradient(rgba(59,130,246,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(59,130,246,0.03) 1px, transparent 1px);
+      background-size: 48px 48px;
+    }
+
+    [data-theme="light"] body::before {
+      background-image: linear-gradient(rgba(59,130,246,0.06) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(59,130,246,0.06) 1px, transparent 1px);
+    }
+
+    .blob { position: fixed; border-radius: 50%; filter: blur(130px); pointer-events: none; z-index: 0; opacity: 0.28; transition: opacity 0.25s; }
+    .b1 { width: 520px; height: 520px; top: -160px; left: -120px; background: radial-gradient(circle, #1d4ed8, transparent 70%); }
+    .b2 { width: 420px; height: 420px; bottom: -80px; right: -80px; background: radial-gradient(circle, #6d28d9, transparent 70%); }
+
+    [data-theme="light"] .blob { opacity: 0.1; }
+
+    /* ── Theme Toggle ── */
+    .theme-toggle {
+      position: fixed; top: 1.2rem; right: 1.5rem; z-index: 100;
+      background: var(--card); border: 1px solid var(--border); border-radius: 9999px;
+      padding: 0.45rem 1rem; cursor: pointer; display: flex; align-items: center; gap: 0.5rem;
+      font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; font-weight: 500;
+      color: var(--muted); transition: all 0.2s ease;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.25);
+    }
+    .theme-toggle:hover { border-color: rgba(59,130,246,0.4); color: var(--text); }
+    .theme-toggle .icon { font-size: 0.95rem; }
+
+    .page { position: relative; z-index: 1; max-width: 1320px; margin: 0 auto; padding: 3rem 2rem 5rem; }
+
+    /* ── Header ── */
+    header { text-align: center; margin-bottom: 3.5rem; }
+
+    .badge {
+      display: inline-flex; align-items: center; gap: 0.4rem;
+      background: rgba(59,130,246,0.1); border: 1px solid rgba(59,130,246,0.25);
+      color: #93c5fd; font-size: 0.7rem; font-weight: 600; letter-spacing: 0.12em;
+      text-transform: uppercase; padding: 0.3rem 0.9rem; border-radius: 9999px; margin-bottom: 1.2rem;
+    }
+    .badge::before { content: '●'; font-size: 0.5rem; color: #3b82f6; }
+
+    h1 {
+      font-size: clamp(1.8rem, 4vw, 2.8rem); font-weight: 700; letter-spacing: -0.02em;
+      background: linear-gradient(135deg, #f0f4ff 30%, #93c5fd 65%, #c4b5fd);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+      margin-bottom: 0.75rem;
+    }
+
+    .subtitle { color: var(--muted); font-size: 1rem; max-width: 500px; margin: 0 auto 1.5rem; line-height: 1.6; }
+
+    .tags { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.5rem; }
+    .tag { font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; padding: 0.25rem 0.7rem; border-radius: 6px; font-weight: 500; }
+
+    /* ── Diagram Card ── */
+    .diagram-card {
+      background: var(--card); border: 1px solid var(--border); border-radius: 20px;
+      overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.05);
+      position: relative;
+    }
+    .diagram-card::before {
+      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(59,130,246,0.5), rgba(139,92,246,0.5), transparent);
+    }
+
+    .dc-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0.9rem 1.5rem; border-bottom: 1px solid var(--border); flex-wrap: wrap; gap: 0.5rem;
+    }
+    .win-dots { display: flex; gap: 6px; }
+    .dot { width: 12px; height: 12px; border-radius: 50%; }
+    .dr { background: #ef4444; } .dy { background: #eab308; } .dg { background: #22c55e; }
+    .dc-title { font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; font-weight: 500; color: var(--faint); }
+
+    .dc-body { overflow-x: auto; padding: 2rem 1.5rem; }
+
+    /* ── Arch Grid ── */
+    .arch-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 196px);
+      grid-auto-rows: auto;
+      gap: 1.25rem 1.5rem;
+      position: relative;
+      min-width: 860px;
+      width: fit-content;
+      margin: 0 auto;
+      padding: 0.5rem;
+    }
+
+    /* ── Nodes ── */
+    .an {
+      position: relative; z-index: 1; border-radius: 10px; padding: 0.85rem 1rem;
+      background: var(--node-bg); border: 1px solid var(--border);
+      transition: transform 0.18s ease, box-shadow 0.18s ease;
+    }
+    .an:hover { transform: translateY(-2px); box-shadow: 0 8px 28px rgba(0,0,0,0.55); }
+    .an .bar {
+      position: absolute; top: -1px; left: 15%; right: 15%; height: 2px;
+      border-radius: 0 0 2px 2px; box-shadow: 0 0 8px currentColor;
+    }
+
+    .an-icon { font-size: 1.1rem; margin-bottom: 0.3rem; }
+    .an-name { font-size: 0.82rem; font-weight: 600; color: var(--text); margin-bottom: 0.1rem; }
+    .an-port { font-family: 'JetBrains Mono', monospace; font-size: 0.63rem; color: var(--faint); margin-bottom: 0.45rem; }
+    .an-chips { display: flex; flex-wrap: wrap; gap: 0.25rem; }
+    .ch { font-family: 'JetBrains Mono', monospace; font-size: 0.59rem; padding: 0.1rem 0.4rem; border-radius: 3px; font-weight: 500; }
+
+    /* Grid placement */
+    .gn-web   { grid-column: 3; grid-row: 1; }
+    .gn-gw    { grid-column: 1 / span 5; grid-row: 2; }
+    .gn-user  { grid-column: 2; grid-row: 3; }
+    .gn-chat  { grid-column: 4; grid-row: 3; }
+    .gn-pguser{ grid-column: 2; grid-row: 4; }
+    .gn-pgchat{ grid-column: 4; grid-row: 4; }
+    .gn-eur   { grid-column: 1; grid-row: 5; }
+    .gn-cfg   { grid-column: 5; grid-row: 5; }
+
+    .gw-row { display: flex; align-items: center; gap: 1.25rem; flex-wrap: wrap; }
+    .gw-info { flex-shrink: 0; }
+    .gw-chips { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+
+    /* ── Service Cards ── */
+    .section-label { font-size: 0.7rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--faint); margin-bottom: 1rem; }
+
+    .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 1rem; margin-top: 3rem; }
+
+    .sc {
+      background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+      padding: 1.2rem; transition: transform 0.18s ease, border-color 0.18s ease;
+    }
+    .sc:hover { transform: translateY(-2px); border-color: rgba(255,255,255,0.12); }
+    .sc-icon { font-size: 1.3rem; margin-bottom: 0.5rem; }
+    .sc-name { font-size: 0.88rem; font-weight: 600; margin-bottom: 0.15rem; }
+    .sc-port { font-family: 'JetBrains Mono', monospace; font-size: 0.67rem; color: var(--faint); margin-bottom: 0.6rem; }
+    .sc-desc { font-size: 0.77rem; color: var(--muted); line-height: 1.6; }
+    .sc-tags { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-top: 0.7rem; }
+
+    /* ── Flow ── */
+    .flow { display: flex; flex-direction: column; position: relative; margin-top: 1rem; padding-left: 2.5rem; }
+    .flow::before {
+      content: ''; position: absolute; left: 17px; top: 22px; bottom: 22px; width: 1px;
+      background: linear-gradient(to bottom, #3b82f6, #8b5cf6, #10b981); opacity: 0.25;
+    }
+    .fstep { display: flex; align-items: flex-start; gap: 0.75rem; padding: 0.7rem 0; position: relative; }
+    .fnum {
+      position: absolute; left: -2.5rem; width: 34px; height: 34px; border-radius: 50%;
+      background: #07111f; border: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: center;
+      font-family: 'JetBrains Mono', monospace; font-size: 0.67rem; font-weight: 700; color: var(--faint); z-index: 1;
+    }
+    .flabel { font-size: 0.82rem; font-weight: 500; margin-bottom: 0.15rem; }
+    .fdetail { font-family: 'JetBrains Mono', monospace; font-size: 0.68rem; color: var(--muted); }
+
+    /* ── Footer ── */
+    footer { margin-top: 4rem; border-top: 1px solid var(--border); padding-top: 2rem; text-align: center; font-size: 0.73rem; color: var(--faint); }
+    footer b { color: var(--muted); }
+
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 3px; }
+  </style>
+</head>
+<body>
+  <div class="blob b1"></div>
+  <div class="blob b2"></div>
+
+  <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+    <span class="icon" id="theme-icon">☀️</span>
+    <span id="theme-label">Light</span>
+  </button>
+
+  <div class="page">
+
+    <header>
+      <div class="badge">System Architecture</div>
+      <h1>Pinggo Platform</h1>
+      <p class="subtitle">Microservices for user profiles and chat — Spring Boot, Spring Cloud, Azure AD B2C.</p>
+      <div class="tags">
+        <span class="tag" style="background:rgba(59,130,246,0.12);border:1px solid rgba(59,130,246,0.3);color:#93c5fd">Spring Cloud</span>
+        <span class="tag" style="background:rgba(139,92,246,0.12);border:1px solid rgba(139,92,246,0.3);color:#c4b5fd">JWT / OAuth2</span>
+        <span class="tag" style="background:rgba(16,185,129,0.12);border:1px solid rgba(16,185,129,0.3);color:#6ee7b7">Spring MVC</span>
+        <span class="tag" style="background:rgba(244,63,94,0.12);border:1px solid rgba(244,63,94,0.3);color:#fda4af">PostgreSQL</span>
+        <span class="tag" style="background:rgba(100,116,139,0.12);border:1px solid rgba(100,116,139,0.3);color:#94a3b8">Flyway</span>
+      </div>
+    </header>
+
+    <!-- DIAGRAM -->
+    <div class="diagram-card">
+      <div class="dc-header">
+        <div class="win-dots"><div class="dot dr"></div><div class="dot dy"></div><div class="dot dg"></div></div>
+        <div class="dc-title">architecture / service-map</div>
+        <div></div>
+      </div>
+      <div class="dc-body">
+        <div class="arch-grid" id="arch-grid">
+
+          <!-- Web Client -->
+          <div class="an gn-web" id="n-web">
+            <span class="bar" style="color:#3b82f6;background:#3b82f6"></span>
+            <div class="an-icon">🌐</div>
+            <div class="an-name">Web Client</div>
+            <div class="an-port">Browser</div>
+            <div class="an-chips">
+              <span class="ch" style="background:rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.3);color:#93c5fd">REST</span>
+              <span class="ch" style="background:rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.3);color:#93c5fd">Bearer JWT</span>
+            </div>
+          </div>
+
+          <!-- API Gateway (full-width) -->
+          <div class="an gn-gw" id="n-gw">
+            <span class="bar" style="color:#8b5cf6;background:#8b5cf6"></span>
+            <div class="gw-row">
+              <div class="an-icon" style="margin:0">🔀</div>
+              <div class="gw-info">
+                <div class="an-name">API Gateway</div>
+                <div class="an-port" style="margin:0">:8081 · piingo-gateway</div>
+              </div>
+              <div class="gw-chips">
+                <span class="ch" style="background:rgba(139,92,246,0.15);border:1px solid rgba(139,92,246,0.3);color:#c4b5fd">JWT Validation</span>
+                <span class="ch" style="background:rgba(139,92,246,0.15);border:1px solid rgba(139,92,246,0.3);color:#c4b5fd">IdentityHeaderFilter</span>
+                <span class="ch" style="background:rgba(139,92,246,0.15);border:1px solid rgba(139,92,246,0.3);color:#c4b5fd">Eureka Routing</span>
+                <span class="ch" style="background:rgba(139,92,246,0.15);border:1px solid rgba(139,92,246,0.3);color:#c4b5fd">Swagger UI</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- User Service -->
+          <div class="an gn-user" id="n-user">
+            <span class="bar" style="color:#10b981;background:#10b981"></span>
+            <div class="an-icon">👤</div>
+            <div class="an-name">User Service</div>
+            <div class="an-port">:8080 · user-service</div>
+            <div class="an-chips">
+              <span class="ch" style="background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.3);color:#6ee7b7">GET /me</span>
+              <span class="ch" style="background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.3);color:#6ee7b7">PATCH /me/profile</span>
+            </div>
+          </div>
+
+          <!-- Chat Service -->
+          <div class="an gn-chat" id="n-chat">
+            <span class="bar" style="color:#10b981;background:#10b981"></span>
+            <div class="an-icon">💬</div>
+            <div class="an-name">Chat Service</div>
+            <div class="an-port">:8082 · chat-service</div>
+            <div class="an-chips">
+              <span class="ch" style="background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.3);color:#6ee7b7">POST /conversations</span>
+            </div>
+          </div>
+
+          <!-- PostgreSQL (user-service) -->
+          <div class="an gn-pguser" id="n-pguser">
+            <span class="bar" style="color:#475569;background:#475569"></span>
+            <div class="an-icon">🗄️</div>
+            <div class="an-name">PostgreSQL</div>
+            <div class="an-port">:5432 · user_service</div>
+            <div class="an-chips">
+              <span class="ch" style="background:rgba(71,85,105,0.2);border:1px solid rgba(71,85,105,0.4);color:#94a3b8">users</span>
+              <span class="ch" style="background:rgba(71,85,105,0.2);border:1px solid rgba(71,85,105,0.4);color:#94a3b8">user_status</span>
+            </div>
+          </div>
+
+          <!-- PostgreSQL (chat-service) -->
+          <div class="an gn-pgchat" id="n-pgchat">
+            <span class="bar" style="color:#475569;background:#475569"></span>
+            <div class="an-icon">🗄️</div>
+            <div class="an-name">PostgreSQL</div>
+            <div class="an-port">:5433 · chat_service</div>
+            <div class="an-chips">
+              <span class="ch" style="background:rgba(71,85,105,0.2);border:1px solid rgba(71,85,105,0.4);color:#94a3b8">conversations</span>
+              <span class="ch" style="background:rgba(71,85,105,0.2);border:1px solid rgba(71,85,105,0.4);color:#94a3b8">messages</span>
+            </div>
+          </div>
+
+          <!-- Eureka -->
+          <div class="an gn-eur" id="n-eur">
+            <span class="bar" style="color:#6b7280;background:#6b7280"></span>
+            <div class="an-icon">🗂️</div>
+            <div class="an-name">Eureka</div>
+            <div class="an-port">:8761 · service discovery</div>
+          </div>
+
+          <!-- Config Server -->
+          <div class="an gn-cfg" id="n-cfg">
+            <span class="bar" style="color:#6b7280;background:#6b7280"></span>
+            <div class="an-icon">⚙️</div>
+            <div class="an-name">Config Server</div>
+            <div class="an-port">:8888 · piingo-config</div>
+          </div>
+
+        </div><!-- /arch-grid -->
+      </div>
+    </div><!-- /diagram-card -->
+
+    <!-- Service Cards -->
+    <div class="cards">
+      <div class="sc">
+        <div class="sc-icon">🔀</div>
+        <div class="sc-name">API Gateway</div>
+        <div class="sc-port">:8081 · piingo-gateway</div>
+        <div class="sc-desc">Single entry point. Validates JWTs via Azure AD B2C, strips incoming X-* headers, injects X-Gateway-Secret + identity headers, routes to services via Eureka. Serves aggregated Swagger UI.</div>
+        <div class="sc-tags">
+          <span class="ch" style="background:rgba(139,92,246,0.15);border:1px solid rgba(139,92,246,0.3);color:#c4b5fd">OAuth2</span>
+          <span class="ch" style="background:rgba(139,92,246,0.15);border:1px solid rgba(139,92,246,0.3);color:#c4b5fd">WebFlux</span>
+          <span class="ch" style="background:rgba(139,92,246,0.15);border:1px solid rgba(139,92,246,0.3);color:#c4b5fd">Spring Cloud Gateway</span>
+        </div>
+      </div>
+      <div class="sc">
+        <div class="sc-icon">👤</div>
+        <div class="sc-name">User Service</div>
+        <div class="sc-port">:8080 · user-service</div>
+        <div class="sc-desc">Manages user profiles. Provisions users on first login via JWT sub claim. Trusts X-Gateway headers — no JWT parsing. Stores users and online status in PostgreSQL.</div>
+        <div class="sc-tags">
+          <span class="ch" style="background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.3);color:#6ee7b7">Spring MVC</span>
+          <span class="ch" style="background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.3);color:#6ee7b7">PostgreSQL</span>
+          <span class="ch" style="background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.3);color:#6ee7b7">Flyway</span>
+        </div>
+      </div>
+      <div class="sc">
+        <div class="sc-icon">💬</div>
+        <div class="sc-name">Chat Service</div>
+        <div class="sc-port">:8082 · chat-service</div>
+        <div class="sc-desc">Manages conversations and participants. Creates conversations via POST /conversations; stores participant subs as text. Trusts X-Gateway headers identical to user-service.</div>
+        <div class="sc-tags">
+          <span class="ch" style="background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.3);color:#6ee7b7">Spring MVC</span>
+          <span class="ch" style="background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.3);color:#6ee7b7">PostgreSQL</span>
+          <span class="ch" style="background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.3);color:#6ee7b7">Flyway</span>
+        </div>
+      </div>
+      <div class="sc">
+        <div class="sc-icon">🗂️</div>
+        <div class="sc-name">Service Registry</div>
+        <div class="sc-port">:8761 Eureka · :8888 Config</div>
+        <div class="sc-desc">Eureka handles service discovery; all client services register by name. Config server reads YAML from GitHub (<code style="color:#94a3b8;font-size:0.68rem">muditkhanna98/piingo-config</code>) and serves configuration at startup.</div>
+        <div class="sc-tags">
+          <span class="ch" style="background:rgba(100,116,139,0.15);border:1px solid rgba(100,116,139,0.3);color:#94a3b8">Eureka</span>
+          <span class="ch" style="background:rgba(100,116,139,0.15);border:1px solid rgba(100,116,139,0.3);color:#94a3b8">Spring Cloud Config</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Security Flow -->
+    <div style="margin-top:3rem">
+      <p class="section-label">Security flow</p>
+      <div class="flow">
+        <div class="fstep"><div class="fnum">01</div><div><div class="flabel">Azure AD B2C issues token</div><div class="fdetail">Client authenticates via PKCE / OIDC flow</div></div></div>
+        <div class="fstep"><div class="fnum">02</div><div><div class="flabel">Client sends request to gateway</div><div class="fdetail">Authorization: Bearer &lt;jwt&gt;</div></div></div>
+        <div class="fstep"><div class="fnum">03</div><div><div class="flabel">Gateway validates JWT signature</div><div class="fdetail">Verified against Azure AD B2C OIDC issuer endpoint</div></div></div>
+        <div class="fstep"><div class="fnum">04</div><div><div class="flabel">IdentityHeaderFilter strips &amp; injects headers</div><div class="fdetail">Removes incoming X-* headers; adds X-Gateway-Secret · X-User-Sub · X-User-Email · X-User-Name</div></div></div>
+        <div class="fstep"><div class="fnum">05</div><div><div class="flabel">Request forwarded via Eureka load balancer</div><div class="fdetail">lb://user-service · lb://chat-service</div></div></div>
+        <div class="fstep"><div class="fnum">06</div><div><div class="flabel">Downstream service trusts gateway secret</div><div class="fdetail">GatewayAuthenticationFilter validates X-Gateway-Secret — no JWT parsing downstream</div></div></div>
+      </div>
+    </div>
+
+    <footer>
+      <p>Pinggo — Microservices Learning Project &nbsp;·&nbsp; <b>Spring Boot 4.0 · Java 25 · Spring Cloud 2025.1</b></p>
+    </footer>
+
+  </div><!-- /page -->
+
+  <script>
+  (function () {
+    // ── Theme toggle ──
+    const root = document.documentElement;
+    const btn = document.getElementById('theme-toggle');
+    const icon = document.getElementById('theme-icon');
+    const label = document.getElementById('theme-label');
+
+    const saved = localStorage.getItem('pinggo-theme');
+    if (saved === 'light') { root.setAttribute('data-theme', 'light'); icon.textContent = '🌙'; label.textContent = 'Dark'; }
+
+    btn.addEventListener('click', () => {
+      const isLight = root.getAttribute('data-theme') === 'light';
+      if (isLight) {
+        root.removeAttribute('data-theme');
+        icon.textContent = '☀️'; label.textContent = 'Light';
+        localStorage.setItem('pinggo-theme', 'dark');
+      } else {
+        root.setAttribute('data-theme', 'light');
+        icon.textContent = '🌙'; label.textContent = 'Dark';
+        localStorage.setItem('pinggo-theme', 'light');
+      }
+      requestAnimationFrame(() => window.__pinggo_draw && window.__pinggo_draw());
+    });
+  })();
+
+  (function () {
+    const grid = document.getElementById('arch-grid');
+
+    // Build SVG with arrowhead markers
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:0;overflow:visible';
+
+    const palette = { blue:'3b82f6', violet:'8b5cf6', emerald:'10b981', slate:'64748b', disc:'38bdf8' };
+    const defsEl = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+    Object.entries(palette).forEach(([name, hex]) => {
+      const m = document.createElementNS('http://www.w3.org/2000/svg', 'marker');
+      m.setAttribute('id', 'arr-' + name);
+      m.setAttribute('markerWidth', '9'); m.setAttribute('markerHeight', '9');
+      m.setAttribute('refX', '7'); m.setAttribute('refY', '3.5');
+      m.setAttribute('orient', 'auto');
+      const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      p.setAttribute('d', 'M0,0.5 L0,6.5 L8,3.5 z');
+      p.setAttribute('fill', '#' + hex); p.setAttribute('opacity', '0.9');
+      m.appendChild(p); defsEl.appendChild(m);
+    });
+    svg.appendChild(defsEl);
+    grid.appendChild(svg);
+
+    // Get node rect relative to grid
+    function R(id) {
+      const el = document.getElementById(id);
+      const er = el.getBoundingClientRect();
+      const gr = grid.getBoundingClientRect();
+      const x = er.left - gr.left, y = er.top - gr.top, w = er.width, h = er.height;
+      return { x, y, w, h, cx: x+w/2, cy: y+h/2, t: y, b: y+h, l: x, r: x+w };
+    }
+
+    // Edge point on a node rect
+    function E(rect, side, offset) {
+      offset = offset || 0;
+      const { cx, cy, t, b, l, r, w } = rect;
+      if (side==='t')  return { x: cx+offset, y: t };
+      if (side==='b')  return { x: cx+offset, y: b };
+      if (side==='l')  return { x: l, y: cy+offset };
+      if (side==='r')  return { x: r, y: cy+offset };
+      if (side==='bl') return { x: l+w*0.28, y: b };
+      if (side==='br') return { x: r-w*0.28, y: b };
+    }
+
+    // Cubic bezier path + midpoint
+    function bez(p1, p2, s1, s2, strength) {
+      const d = strength || (Math.max(Math.abs(p2.y-p1.y), Math.abs(p2.x-p1.x))*0.45 + 12);
+      let c1x=p1.x, c1y=p1.y, c2x=p2.x, c2y=p2.y;
+      if(s1==='b'||s1==='bl'||s1==='br') c1y+=d;
+      else if(s1==='t') c1y-=d;
+      else if(s1==='r') c1x+=d;
+      else if(s1==='l') c1x-=d;
+      if(s2==='t') c2y-=d;
+      else if(s2==='b') c2y+=d;
+      else if(s2==='l') c2x-=d;
+      else if(s2==='r') c2x+=d;
+      return {
+        d: `M${p1.x} ${p1.y} C${c1x} ${c1y} ${c2x} ${c2y} ${p2.x} ${p2.y}`,
+        mx: (p1.x+3*c1x+3*c2x+p2.x)/8,
+        my: (p1.y+3*c1y+3*c2y+p2.y)/8
+      };
+    }
+
+    function addLine(d, hex, marker, dashed, opacity, width) {
+      const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      p.setAttribute('d', d);
+      p.setAttribute('stroke', '#'+hex);
+      p.setAttribute('stroke-width', (width||1.5).toString());
+      p.setAttribute('fill', 'none');
+      p.setAttribute('opacity', (opacity||0.75).toString());
+      if(marker) p.setAttribute('marker-end', 'url(#arr-'+marker+')');
+      if(dashed) p.setAttribute('stroke-dasharray', '4 3');
+      svg.appendChild(p);
+    }
+
+    function addLabel(x, y, text, hex) {
+      const w = text.length * 6.2 + 14;
+      const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      bg.setAttribute('x',(x-w/2).toString()); bg.setAttribute('y',(y-9).toString());
+      bg.setAttribute('width',w.toString()); bg.setAttribute('height','17');
+      const svgBg = getComputedStyle(document.documentElement).getPropertyValue('--svg-bg').trim() || '#040c1a';
+      bg.setAttribute('rx','3'); bg.setAttribute('fill', svgBg); bg.setAttribute('opacity','0.92');
+      svg.appendChild(bg);
+      const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      t.setAttribute('x',x.toString()); t.setAttribute('y',y.toString());
+      t.setAttribute('text-anchor','middle'); t.setAttribute('dominant-baseline','middle');
+      t.setAttribute('fill','#'+hex); t.setAttribute('font-size','11');
+      t.setAttribute('font-family','JetBrains Mono, monospace'); t.setAttribute('font-weight','500');
+      t.textContent = text;
+      svg.appendChild(t);
+    }
+
+    function draw() {
+      // Clear non-defs children
+      [...svg.children].forEach(c => { if(c !== defsEl) svg.removeChild(c); });
+
+      const web=R('n-web'), gw=R('n-gw'), user=R('n-user'), chat=R('n-chat');
+      const pguser=R('n-pguser'), pgchat=R('n-pgchat'), eur=R('n-eur'), cfg=R('n-cfg');
+
+      let b;
+
+      // Web → Gateway
+      b = bez(E(web,'b'), E(gw,'t'), 'b', 't');
+      addLine(b.d, palette.blue, 'blue');
+      addLabel(b.mx+24, b.my, 'HTTPS + JWT', '93c5fd');
+
+      // Gateway → User Service
+      b = bez(E(gw,'b', -(gw.w*0.2)), E(user,'t'), 'bl', 't');
+      addLine(b.d, palette.violet, 'violet');
+      addLabel(b.mx-28, b.my, 'HTTP /me/**', 'c4b5fd');
+
+      // Gateway → Chat Service
+      b = bez(E(gw,'b', gw.w*0.2), E(chat,'t'), 'br', 't');
+      addLine(b.d, palette.violet, 'violet');
+      addLabel(b.mx+36, b.my, 'HTTP /conversations', 'c4b5fd');
+
+      // User ↔ PostgreSQL (bidirectional)
+      b = bez(E(user,'b',-5), E(pguser,'t',-5), 'b', 't');
+      addLine(b.d, palette.slate, 'slate');
+      b = bez(E(pguser,'t',5), E(user,'b',5), 't', 'b');
+      addLine(b.d, palette.slate, 'slate');
+
+      // Chat ↔ PostgreSQL (bidirectional)
+      b = bez(E(chat,'b',-5), E(pgchat,'t',-5), 'b', 't');
+      addLine(b.d, palette.slate, 'slate');
+      b = bez(E(pgchat,'t',5), E(chat,'b',5), 't', 'b');
+      addLine(b.d, palette.slate, 'slate');
+
+      // Discovery dashed lines (very subtle)
+      for(const [id, side, eo, co] of [
+        ['n-gw','l',0,0], ['n-user','b',-8,8], ['n-chat','b',-8,8]
+      ]) {
+        const nr = R(id);
+        b = bez(E(nr,side,eo), E(eur,'t'), side, 't');
+        addLine(b.d, palette.disc, null, true, 0.55, 1.5);
+        b = bez(E(nr,side,co), E(cfg,'t'), side, 't');
+        addLine(b.d, palette.disc, null, true, 0.55, 1.5);
+      }
+    }
+
+    // Expose draw globally so the theme toggle can redraw
+    window.__pinggo_draw = draw;
+
+    // Draw after full layout is complete
+    window.addEventListener('load', () => requestAnimationFrame(() => requestAnimationFrame(draw)));
+    new ResizeObserver(() => requestAnimationFrame(draw)).observe(grid);
+  })();
+  </script>
+</body>
+</html>

@@ -12,11 +12,3 @@ eureka:
   client:
     enabled: false
 
-pinggo:
-  security:
-    internal:
-      gateway-secret: test-gateway-secret
-    oauth2:
-      swagger:
-        authorization-url: https://example.com/authorize
-        token-url: https://example.com/token

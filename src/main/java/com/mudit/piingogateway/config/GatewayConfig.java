@@ -25,8 +25,8 @@ public class GatewayConfig {
 
     @Bean
     public RouterFunction<ServerResponse> chatServiceRoute() {
-        return route("chat_route")
-                .route(path("/api/chat/**"), http())
+        return route("conversation_route")
+                .route(path("/api/conversations/**"), http())
                 .before(rewritePath("/api/(?<segment>.*)", "/${segment}"))
                 .filter(lb("piingo-chat-service"))
                 .build();
